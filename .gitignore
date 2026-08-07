@@ -1,5 +1,37 @@
+# Python
 __pycache__/
-*.pyc
-.env
+*.py[cod]
+*$py.class
+*.egg-info/
+
+# Virtual environment
 venv/
+env/
+ENV/
+
+# Environment secrets — NEVER commit this
+.env
+.env.local
+
+# Database
 *.db
+*.sqlite3
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Alembic (keep migration scripts, ignore generated cache only)
+alembic/__pycache__/
+
+# Uploaded/generated files (if any local test uploads)
+uploads/
+*.zip
