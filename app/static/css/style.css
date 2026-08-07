@@ -1,0 +1,68 @@
+body {
+  background-color: #f4f6f9;
+}
+
+.login-body {
+  background: linear-gradient(135deg, #1e2a38, #2c3e50);
+}
+
+.login-card {
+  border-radius: 12px;
+  border: none;
+}
+
+.sidebar .nav-link {
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 4px;
+}
+
+.sidebar .nav-link:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.stat-card {
+  border-radius: 10px;
+  border: none;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.rack-visual {
+  display: flex;
+  flex-direction: column;
+  border: 2px solid #333;
+  border-radius: 4px;
+  overflow: hidden;
+  max-width: 500px;
+}
+
+.u-slot {
+  padding: 6px 10px;
+  font-size: 12px;
+  border-bottom: 1px solid #ddd;
+}
+
+.u-slot.occupied {
+  background-color: #cfe8ff;
+  font-weight: 600;
+}
+
+.u-slot.free {
+  background-color: #fafafa;
+  color: #999;
+}
+
+.sidebar-nav {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.25) transparent;
+}
+.sidebar-nav::-webkit-scrollbar {
+  width: 5px;
+}
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background-color: rgba(255,255,255,0.25);
+  border-radius: 4px;
+}
+.sidebar-nav::-webkit-scrollbar-track {
+  background: transparent;
+}

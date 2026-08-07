@@ -1,0 +1,197 @@
+{% extends "layout/base.html" %}
+{% block title %}Devices - EDCRMS{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h3>Devices</h3>
+  <button class="btn btn-primary" id="addNewBtn" data-bs-toggle="modal" data-bs-target="#addDeviceModal"><i class="fa-solid fa-plus"></i> Add New</button>
+</div>
+<div class="card p-3">
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead><tr><th>Hostname</th><th>IP Address</th><th>Rack</th><th>Start U</th><th>Height</th><th>Status</th><th>Warranty Expiry</th><th>Action</th></tr></thead>
+      <tbody id="device-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Add Device Modal -->
+<div class="modal fade" id="addDeviceModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">Add Device</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div id="device-form-error" class="alert alert-danger d-none"></div>
+        <form id="add-device-form">
+          <div class="mb-2"><label class="form-label">Rack</label>
+            <select class="form-select" id="d_rack_id" required></select>
+          </div>
+          <div class="mb-2"><label class="form-label">Hostname</label><input type="text" class="form-control" id="d_hostname" required></div>
+          <div class="mb-2"><label class="form-label">IP Address</label><input type="text" class="form-control" id="d_ip"></div>
+          <div class="mb-2"><label class="form-label">Start U</label><input type="number" class="form-control" id="d_start_u" required></div>
+          <div class="mb-2"><label class="form-label">Height (U)</label><input type="number" class="form-control" id="d_height" value="1" required></div>
+          <div class="mb-2"><label class="form-label">Status</label>
+            <select class="form-select" id="d_status">
+              <option value="online">online</option>
+              <option value="offline">offline</option>
+              <option value="maintenance">maintenance</option>
+            </select>
+          </div>
+          <div class="mb-2"><label class="form-label">Warranty Expiry</label><input type="date" class="form-control" id="d_warranty"></div>
+          <button type="submit" class="btn btn-primary w-100 mt-2">Save</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Device Modal -->
+<div class="modal fade" id="editDeviceModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">Edit Device</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div id="edit-device-form-error" class="alert alert-danger d-none"></div>
+        <form id="edit-device-form">
+          <input type="hidden" id="e_id">
+          <div class="mb-2"><label class="form-label">Rack</label>
+            <select class="form-select" id="e_rack_id" required></select>
+          </div>
+          <div class="mb-2"><label class="form-label">Hostname</label><input type="text" class="form-control" id="e_hostname" required></div>
+          <div class="mb-2"><label class="form-label">IP Address</label><input type="text" class="form-control" id="e_ip"></div>
+          <div class="mb-2"><label class="form-label">Start U</label><input type="number" class="form-control" id="e_start_u" required></div>
+          <div class="mb-2"><label class="form-label">Height (U)</label><input type="number" class="form-control" id="e_height" required></div>
+          <div class="mb-2"><label class="form-label">Status</label>
+            <select class="form-select" id="e_status">
+              <option value="online">online</option>
+              <option value="offline">offline</option>
+              <option value="maintenance">maintenance</option>
+            </select>
+          </div>
+          <div class="mb-2"><label class="form-label">Warranty Expiry</label><input type="date" class="form-control" id="e_warranty"></div>
+          <button type="submit" class="btn btn-primary w-100 mt-2">Update</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+requireAuth();
+
+if (!canAtLeast('Engineer')) {
+  const addBtn = document.getElementById('addNewBtn');
+  if (addBtn) addBtn.style.display = 'none';
+}
+
+let currentDevices = [];
+
+async function loadDevices() {
+  const devices = await apiGet('/api/devices/');
+  currentDevices = devices;
+  document.getElementById('device-tbody').innerHTML = devices.map(d => `
+    <tr>
+      <td>${d.hostname}</td>
+      <td>${d.ip_address || '-'}</td>
+      <td>#${d.rack_id}</td>
+      <td>U${d.start_u}</td>
+      <td>${d.height_u}U</td>
+      <td><span class="badge bg-${d.status === 'online' ? 'success' : d.status === 'offline' ? 'danger' : 'warning'}">${d.status}</span></td>
+      <td>${d.warranty_exp || '-'}</td>
+      <td>
+        ${canAtLeast('Engineer') ? `<button class="btn btn-sm btn-outline-secondary me-1" onclick="openEditDevice(${d.id})"><i class="fa-solid fa-pen"></i></button>` : ''}
+        ${canAtLeast('Admin') ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteDevice(${d.id})"><i class="fa-solid fa-trash"></i></button>` : ''}
+      </td>
+    </tr>
+  `).join('') || '<tr><td colspan="8" class="text-muted text-center">No records found</td></tr>';
+}
+
+async function loadRacksForDevice() {
+  const racks = await apiGet('/api/racks/');
+  const options = racks.map(r => `<option value="${r.id}">${r.rack_name}</option>`).join('');
+  document.getElementById('d_rack_id').innerHTML = options;
+  document.getElementById('e_rack_id').innerHTML = options;
+}
+
+function openEditDevice(id) {
+  const device = currentDevices.find(d => d.id === id);
+  if (!device) return;
+  document.getElementById('e_id').value = device.id;
+  document.getElementById('e_rack_id').value = device.rack_id;
+  document.getElementById('e_hostname').value = device.hostname ?? '';
+  document.getElementById('e_ip').value = device.ip_address ?? '';
+  document.getElementById('e_start_u').value = device.start_u;
+  document.getElementById('e_height').value = device.height_u;
+  document.getElementById('e_status').value = device.status ?? 'online';
+  document.getElementById('e_warranty').value = device.warranty_exp ?? '';
+  document.getElementById('edit-device-form-error').classList.add('d-none');
+  new bootstrap.Modal(document.getElementById('editDeviceModal')).show();
+}
+
+document.getElementById('edit-device-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errBox = document.getElementById('edit-device-form-error');
+  errBox.classList.add('d-none');
+  const id = document.getElementById('e_id').value;
+  const payload = {
+    rack_id: parseInt(document.getElementById('e_rack_id').value),
+    hostname: document.getElementById('e_hostname').value,
+    ip_address: document.getElementById('e_ip').value || null,
+    start_u: parseInt(document.getElementById('e_start_u').value),
+    height_u: parseInt(document.getElementById('e_height').value),
+    status: document.getElementById('e_status').value,
+    warranty_exp: document.getElementById('e_warranty').value || null,
+  };
+  try {
+    await apiSend(`/api/devices/${id}`, 'PUT', payload);
+    bootstrap.Modal.getInstance(document.getElementById('editDeviceModal')).hide();
+    loadDevices();
+  } catch (err) {
+    errBox.textContent = err.message;
+    errBox.classList.remove('d-none');
+  }
+});
+
+async function deleteDevice(id) {
+  if (!confirm('Delete this device?')) return;
+  try {
+    await apiSend(`/api/devices/${id}`, 'DELETE');
+    loadDevices();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+document.getElementById('add-device-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errBox = document.getElementById('device-form-error');
+  errBox.classList.add('d-none');
+  const payload = {
+    rack_id: parseInt(document.getElementById('d_rack_id').value),
+    hostname: document.getElementById('d_hostname').value,
+    ip_address: document.getElementById('d_ip').value || null,
+    start_u: parseInt(document.getElementById('d_start_u').value),
+    height_u: parseInt(document.getElementById('d_height').value),
+    status: document.getElementById('d_status').value,
+    warranty_exp: document.getElementById('d_warranty').value || null,
+  };
+  try {
+    await apiSend('/api/devices/', 'POST', payload);
+    bootstrap.Modal.getInstance(document.getElementById('addDeviceModal')).hide();
+    document.getElementById('add-device-form').reset();
+    loadDevices();
+  } catch (err) {
+    errBox.textContent = err.message;
+    errBox.classList.remove('d-none');
+  }
+});
+
+(async function init() {
+  await loadRacksForDevice();
+  await loadDevices();
+})();
+</script>
+{% endblock %}

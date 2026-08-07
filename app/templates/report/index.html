@@ -1,0 +1,62 @@
+{% extends "layout/base.html" %}
+{% block title %}Reports - EDCRMS{% endblock %}
+{% block content %}
+<h3 class="mb-4">Reports</h3>
+
+<div class="row g-3">
+  <div class="col-md-4">
+    <div class="card p-4 text-center">
+      <i class="fa-solid fa-hard-drive fa-2x mb-3 text-primary"></i>
+      <h6>Devices Report</h6>
+      <p class="text-muted small">All devices with rack position and status</p>
+      <div class="d-flex gap-2 justify-content-center">
+        <a href="/api/reports/devices/csv" class="btn btn-outline-primary btn-sm" onclick="return withAuth(event, this.href)">CSV</a>
+        <a href="/api/reports/devices/excel" class="btn btn-outline-success btn-sm" onclick="return withAuth(event, this.href)">Excel</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card p-4 text-center">
+      <i class="fa-solid fa-server fa-2x mb-3 text-primary"></i>
+      <h6>Racks Report</h6>
+      <p class="text-muted small">Rack utilization: used / free U space</p>
+      <div class="d-flex gap-2 justify-content-center">
+        <a href="/api/reports/racks/csv" class="btn btn-outline-primary btn-sm" onclick="return withAuth(event, this.href)">CSV</a>
+        <a href="/api/reports/racks/excel" class="btn btn-outline-success btn-sm" onclick="return withAuth(event, this.href)">Excel</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card p-4 text-center">
+      <i class="fa-solid fa-triangle-exclamation fa-2x mb-3 text-warning"></i>
+      <h6>Warranty Report</h6>
+      <p class="text-muted small">Devices sorted by warranty expiry date</p>
+      <div class="d-flex gap-2 justify-content-center">
+        <a href="/api/reports/warranty/csv" class="btn btn-outline-primary btn-sm" onclick="return withAuth(event, this.href)">CSV</a>
+        <a href="/api/reports/warranty/excel" class="btn btn-outline-success btn-sm" onclick="return withAuth(event, this.href)">Excel</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+requireAuth();
+
+// File downloads need the Authorization header, so fetch as a blob then trigger download
+function withAuth(event, url) {
+  event.preventDefault();
+  const token = localStorage.getItem('edcrms_token');
+  fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    .then(res => res.blob())
+    .then(blob => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = url.split('/').pop() + (url.includes('excel') ? '.xlsx' : '.csv');
+      a.click();
+    });
+  return false;
+}
+</script>
+{% endblock %}

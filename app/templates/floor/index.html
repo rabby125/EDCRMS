@@ -1,0 +1,146 @@
+{% extends "layout/base.html" %}
+{% block title %}Floors - EDCRMS{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h3>Floors</h3>
+  <button class="btn btn-primary" id="addNewBtn" data-bs-toggle="modal" data-bs-target="#addModal"><i class="fa-solid fa-plus"></i> Add New</button>
+</div>
+
+<div class="card p-3">
+  <input type="text" id="search-box" class="form-control mb-3" placeholder="Search...">
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead><tr><th>Floor Number</th><th>Building Id</th><th>Action</th></tr></thead>
+      <tbody id="data-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Add Modal -->
+<div class="modal fade" id="addModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">Add Floor</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div id="form-error" class="alert alert-danger d-none"></div>
+        <form id="add-form">
+          <div class="mb-2"><label class="form-label">Building ID</label><input type="number" class="form-control" id="f_building_id" ></div>
+          <div class="mb-2"><label class="form-label">Floor Number</label><input type="text" class="form-control" id="f_floor_number" required></div>
+          <button type="submit" class="btn btn-primary w-100 mt-2">Save</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal fade" id="editModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">Edit Floor</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div id="edit-form-error" class="alert alert-danger d-none"></div>
+        <form id="edit-form">
+          <input type="hidden" id="e_id">
+          <div class="mb-2"><label class="form-label">Building ID</label><input type="number" class="form-control" id="e_building_id"></div>
+          <div class="mb-2"><label class="form-label">Floor Number</label><input type="text" class="form-control" id="e_floor_number" required></div>
+          <button type="submit" class="btn btn-primary w-100 mt-2">Update</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+requireAuth();
+const API = "/api/floors/";
+
+if (!canAtLeast('Engineer')) {
+  const addBtn = document.getElementById('addNewBtn');
+  if (addBtn) addBtn.style.display = 'none';
+}
+
+let currentRows = [];
+
+async function loadData(search) {
+  let url = API;
+  if (search) url += "?search=" + encodeURIComponent(search);
+  const rows = await apiGet(url);
+  currentRows = rows;
+  document.getElementById('data-tbody').innerHTML = rows.map(r => `
+    <tr><td>${r.floor_number ?? '-'}</td><td>${r.building_id ?? '-'}</td>
+      <td>
+        ${canAtLeast('Engineer') ? `<button class="btn btn-sm btn-outline-secondary me-1" onclick="openEdit(${r.id})"><i class="fa-solid fa-pen"></i></button>` : ''}
+        ${canAtLeast('Admin') ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteItem(${r.id})"><i class="fa-solid fa-trash"></i></button>` : ''}
+      </td>
+    </tr>
+  `).join('') || '<tr><td colspan="10" class="text-muted text-center">No records found</td></tr>';
+}
+
+function openEdit(id) {
+  const row = currentRows.find(r => r.id === id);
+  if (!row) return;
+  document.getElementById('e_id').value = row.id;
+  document.getElementById('e_building_id').value = row.building_id ?? '';
+  document.getElementById('e_floor_number').value = row.floor_number ?? '';
+  document.getElementById('edit-form-error').classList.add('d-none');
+  new bootstrap.Modal(document.getElementById('editModal')).show();
+}
+
+document.getElementById('edit-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errBox = document.getElementById('edit-form-error');
+  errBox.classList.add('d-none');
+  const id = document.getElementById('e_id').value;
+  const payload = {
+    building_id: document.getElementById('e_building_id').value ? Number(document.getElementById('e_building_id').value) : null,
+    floor_number: document.getElementById('e_floor_number').value
+  };
+  try {
+    await apiSend(`${API}${id}`, 'PUT', payload);
+    bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();
+    loadData();
+  } catch (err) {
+    errBox.textContent = err.message;
+    errBox.classList.remove('d-none');
+  }
+});
+
+document.getElementById('search-box').addEventListener('input', (e) => loadData(e.target.value));
+
+document.getElementById('add-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errBox = document.getElementById('form-error');
+  errBox.classList.add('d-none');
+  const payload = {
+    building_id: document.getElementById("f_building_id").value ? Number(document.getElementById("f_building_id").value) : null,
+    floor_number: document.getElementById("f_floor_number").value
+  };
+  try {
+    await apiSend(API, 'POST', payload);
+    bootstrap.Modal.getInstance(document.getElementById('addModal')).hide();
+    document.getElementById('add-form').reset();
+    loadData();
+  } catch (err) {
+    errBox.textContent = err.message;
+    errBox.classList.remove('d-none');
+  }
+});
+
+async function deleteItem(id) {
+  if (!confirm('Delete this record?')) return;
+  try {
+    await apiSend(`${API}${id}`, 'DELETE');
+    loadData();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+loadData();
+</script>
+{% endblock %}

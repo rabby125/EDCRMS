@@ -1,0 +1,203 @@
+{% extends "layout/base.html" %}
+{% block title %}Racks - EDCRMS{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h3>Racks</h3>
+  <button class="btn btn-primary" id="addNewBtn" data-bs-toggle="modal" data-bs-target="#addRackModal"><i class="fa-solid fa-plus"></i> Add New</button>
+</div>
+<div class="card p-3 mb-4">
+  <div class="table-responsive">
+    <table class="table table-hover" id="rack-table">
+      <thead><tr><th>Name</th><th>Code</th><th>Height (U)</th><th>Used</th><th>Free</th><th>Status</th><th>Layout</th><th>Action</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card p-3 d-none" id="layout-card">
+  <h6 id="layout-title">Rack Layout</h6>
+  <div id="rack-visual" class="rack-visual"></div>
+</div>
+
+<!-- Add Rack Modal -->
+<div class="modal fade" id="addRackModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">Add Rack</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div id="rack-form-error" class="alert alert-danger d-none"></div>
+        <form id="add-rack-form">
+          <div class="mb-2"><label class="form-label">Room</label>
+            <select class="form-select" id="r_room_id" required></select>
+          </div>
+          <div class="mb-2"><label class="form-label">Rack Name</label><input type="text" class="form-control" id="r_name" required></div>
+          <div class="mb-2"><label class="form-label">Rack Code</label><input type="text" class="form-control" id="r_code" required></div>
+          <div class="mb-2"><label class="form-label">Height (U)</label><input type="number" class="form-control" id="r_height" value="42" required></div>
+          <div class="mb-2"><label class="form-label">Max Power (kW)</label><input type="number" step="0.01" class="form-control" id="r_power" value="0"></div>
+          <div class="mb-2"><label class="form-label">Status</label>
+            <select class="form-select" id="r_status">
+              <option value="active">active</option>
+              <option value="inactive">inactive</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary w-100 mt-2">Save</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Rack Modal -->
+<div class="modal fade" id="editRackModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">Edit Rack</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div id="edit-rack-form-error" class="alert alert-danger d-none"></div>
+        <form id="edit-rack-form">
+          <input type="hidden" id="er_id">
+          <div class="mb-2"><label class="form-label">Rack Name</label><input type="text" class="form-control" id="er_name" required></div>
+          <div class="mb-2"><label class="form-label">Height (U)</label><input type="number" class="form-control" id="er_height" required></div>
+          <div class="mb-2"><label class="form-label">Max Power (kW)</label><input type="number" step="0.01" class="form-control" id="er_power"></div>
+          <div class="mb-2"><label class="form-label">Status</label>
+            <select class="form-select" id="er_status">
+              <option value="active">active</option>
+              <option value="inactive">inactive</option>
+            </select>
+          </div>
+          <p class="text-muted small mb-0">Room ও Rack Code পরিবর্তন করা যায় না — এগুলো ঠিক করতে হলে রেকটি ডিলিট করে নতুন করে যোগ করতে হবে।</p>
+          <button type="submit" class="btn btn-primary w-100 mt-2">Update</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+requireAuth();
+
+if (!canAtLeast('Engineer')) {
+  const addBtn = document.getElementById('addNewBtn');
+  if (addBtn) addBtn.style.display = 'none';
+}
+
+let currentRacks = [];
+
+async function loadRacks() {
+  const racks = await apiGet('/api/racks/');
+  currentRacks = racks;
+  document.querySelector('#rack-table tbody').innerHTML = racks.map(r => `
+    <tr>
+      <td>${r.rack_name}</td>
+      <td>${r.rack_code}</td>
+      <td>${r.height_u}U</td>
+      <td>${r.used_u}U</td>
+      <td>${r.free_u}U</td>
+      <td><span class="badge bg-${r.status === 'active' ? 'success' : 'secondary'}">${r.status}</span></td>
+      <td><button class="btn btn-sm btn-outline-primary" onclick="showLayout(${r.id}, '${r.rack_name}')">View</button></td>
+      <td>
+        ${canAtLeast('Engineer') ? `<button class="btn btn-sm btn-outline-secondary me-1" onclick="openEditRack(${r.id})"><i class="fa-solid fa-pen"></i></button>` : ''}
+        ${canAtLeast('Admin') ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteRack(${r.id})"><i class="fa-solid fa-trash"></i></button>` : ''}
+      </td>
+    </tr>
+  `).join('') || '<tr><td colspan="8" class="text-muted text-center">No records found</td></tr>';
+}
+
+async function showLayout(rackId, rackName) {
+  const layout = await apiGet(`/api/racks/${rackId}/layout`);
+  document.getElementById('layout-card').classList.remove('d-none');
+  document.getElementById('layout-title').textContent = `${rackName} — ${layout.used_u}U used / ${layout.height_u}U total`;
+
+  let html = '';
+  for (let u = layout.height_u; u >= 1; u--) {
+    const slot = layout.slots[u];
+    if (slot) {
+      html += `<div class="u-slot occupied" title="${slot.hostname}">U${u} — ${slot.hostname}</div>`;
+    } else {
+      html += `<div class="u-slot free">U${u} — empty</div>`;
+    }
+  }
+  document.getElementById('rack-visual').innerHTML = html;
+}
+
+function openEditRack(id) {
+  const rack = currentRacks.find(r => r.id === id);
+  if (!rack) return;
+  document.getElementById('er_id').value = rack.id;
+  document.getElementById('er_name').value = rack.rack_name ?? '';
+  document.getElementById('er_height').value = rack.height_u ?? '';
+  document.getElementById('er_power').value = rack.max_power_kw ?? 0;
+  document.getElementById('er_status').value = rack.status ?? 'active';
+  document.getElementById('edit-rack-form-error').classList.add('d-none');
+  new bootstrap.Modal(document.getElementById('editRackModal')).show();
+}
+
+document.getElementById('edit-rack-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errBox = document.getElementById('edit-rack-form-error');
+  errBox.classList.add('d-none');
+  const id = document.getElementById('er_id').value;
+  const payload = {
+    rack_name: document.getElementById('er_name').value,
+    height_u: parseInt(document.getElementById('er_height').value),
+    max_power_kw: parseFloat(document.getElementById('er_power').value || 0),
+    status: document.getElementById('er_status').value,
+  };
+  try {
+    await apiSend(`/api/racks/${id}`, 'PUT', payload);
+    bootstrap.Modal.getInstance(document.getElementById('editRackModal')).hide();
+    loadRacks();
+  } catch (err) {
+    errBox.textContent = err.message;
+    errBox.classList.remove('d-none');
+  }
+});
+
+async function deleteRack(id) {
+  if (!confirm('Delete this rack? Devices mounted in it must be removed first.')) return;
+  try {
+    await apiSend(`/api/racks/${id}`, 'DELETE');
+    loadRacks();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function loadRooms() {
+  const rooms = await apiGet('/api/rooms/');
+  document.getElementById('r_room_id').innerHTML = rooms.map(r => `<option value="${r.id}">${r.room_name || r.name}</option>`).join('');
+}
+
+document.getElementById('add-rack-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errBox = document.getElementById('rack-form-error');
+  errBox.classList.add('d-none');
+  const payload = {
+    room_id: parseInt(document.getElementById('r_room_id').value),
+    rack_name: document.getElementById('r_name').value,
+    rack_code: document.getElementById('r_code').value,
+    height_u: parseInt(document.getElementById('r_height').value),
+    max_power_kw: parseFloat(document.getElementById('r_power').value || 0),
+    status: document.getElementById('r_status').value,
+  };
+  try {
+    await apiSend('/api/racks/', 'POST', payload);
+    bootstrap.Modal.getInstance(document.getElementById('addRackModal')).hide();
+    document.getElementById('add-rack-form').reset();
+    loadRacks();
+  } catch (err) {
+    errBox.textContent = err.message;
+    errBox.classList.remove('d-none');
+  }
+});
+
+(async function init() {
+  await loadRooms();
+  await loadRacks();
+})();
+</script>
+{% endblock %}
